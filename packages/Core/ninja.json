@@ -1,0 +1,24 @@
+{
+    "name": "ninja",
+    "category": "Build System",
+    "url": "https://ninja-build.org/",
+    "description": "Ninja is a small build system with a focus on speed.",
+    "versions":
+        [
+            ["1.7.1", "https://github.com/ninja-build/ninja/archive/v1.7.1.tar.gz"]
+        ],
+    "build":
+        [
+            "cd $BUILD_DIR",
+            "export CXXFLAGS=-static",
+            "export LDFLAGS=-static",
+            "$SRC_DIR0/configure.py --bootstrap",
+            "mkdir -p ${PACKAGE_PREFIX}/bin",
+            "cp ninja ${PACKAGE_PREFIX}/bin",
+            "mkdir -p ${PACKAGE_PREFIX}/etc/bash_completion.d",
+            "cp $SRC_DIR0/misc/bash-completion ${PACKAGE_PREFIX}/etc/bash_completion.d/ninja",
+            "mkdir -p ${PACKAGE_PREFIX}/etc/zsh_completion.d",
+            "cp $SRC_DIR0/misc/zsh-completion ${PACKAGE_PREFIX}/etc/zsh_completion.d/ninja"
+        ],
+    "architectures": "all"
+}

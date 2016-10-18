@@ -1,0 +1,12 @@
+{
+    "name": "gcc",
+    "category": "Compiler",
+    "url": "http://www.cmake.org",
+    "description": "CMake is an open-source, cross-platform family of tools designed to build, test and package software.",
+    "versions":
+        [
+            ["1.8.5", "https://github.com/ninja-build/ninja/archive/v1.7.1.tar.gz"]
+        ],
+    "build": ["env"],
+    "architectures": "all"
+}

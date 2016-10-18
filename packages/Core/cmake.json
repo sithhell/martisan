@@ -1,0 +1,13 @@
+{
+    "name": "cmake",
+    "category": "Build System",
+    "url": "http://www.cmake.org",
+    "description": "CMake is an open-source, cross-platform family of tools designed to build, test and package software.",
+    "build-dependencies": ["ninja/1.7.1", "Compiler"],
+    "versions":
+        [
+            ["3.6.2", "https://cmake.org/files/v3.6/cmake-3.6.2.zip"]
+        ],
+    "build": ["env"],
+    "architectures": "all"
+}
