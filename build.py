@@ -46,7 +46,7 @@ def find_package(package):
             if found.has_version(version):
                 return (module, found, version)
 
-    return ('', Package(), version)
+    return ('', Package(), '*')
 
 def download_source(url, destination):
     file_name = url.split('/')[-1]
@@ -115,6 +115,9 @@ class Package:
         else:
             return 'Invalid Package'
 
+    def __repr__(self):
+        return self.__str__()
+
     def __nonzero__(self):
         return 'name' in self.json_data
 
@@ -143,6 +146,25 @@ class Package:
                 versions.extend([version[0]])
 
         return versions
+
+    def module_env_vars(self):
+        if 'modulefile' in self.json_data:
+            modulefile = self.json_data['modulefile']
+            if 'env' in modulefile:
+                return modulefile['env']
+        return {}
+
+    def module_path_vars(self):
+        if 'modulefile' in self.json_data:
+            modulefile = self.json_data['modulefile']
+            if 'paths' in modulefile:
+                return modulefile['paths']
+        return {}
+
+    def get_data(self, name):
+        if name in self.json_data:
+            return self.json_data[name]
+        return ''
 
     def resolve_dependencies(self):
         def get_deps(name):
@@ -206,8 +228,7 @@ class Package:
 
             return res_deps + res_deps_opt
 
-        self.build_deps = get_deps('build-dependencies')
-        self.run_deps = get_deps('run-dependencies')
+        self.build_deps = get_deps('dependencies')
 
     def prefix(self, basepath, arch, version, deps=None):
         path = os.path.join(basepath, arch)
@@ -254,11 +275,129 @@ class Package:
 
         return path
 
+    def get_deps_path(self, deps):
+        get_dir = lambda name: '%s-%s' % (deps[name][0].name(), deps[name][1][0]) if name in deps else ''
+
+        deps_dir = ''
+        compiler_dir = get_dir('compiler')
+        if compiler_dir:
+            deps_dir = deps_dir + compiler_dir
+        cuda_dir = get_dir('cuda')
+        if cuda_dir:
+            deps_dir = deps_dir + '-' +  cuda_dir
+        mpi_dir = get_dir('mpi')
+        if mpi_dir:
+            deps_dir = deps_dir + '-' +  mpi_dir
+        python_dir = get_dir('python')
+        if python_dir:
+            deps_dir = deps_dir + '-' +  python_dir
+        boost_dir = get_dir('boost')
+        if boost_dir:
+            deps_dir = deps_dir + '-' +  boost_dir
+
+        return deps_dir
+
+    def base_modulefile(self, basepath, arch, rext_deps, deps):
+        modulefiles = os.path.join(basepath, arch, 'modulefiles')
+
+        deps_dir = self.get_deps_path(rext_deps)
+
+        modulefiles = os.path.join(modulefiles, deps_dir)
+        prefix_base = os.path.dirname(self.prefix(basepath, arch, 'nan', rext_deps))
+
+
+        if deps_dir == '':
+            base_module_dir = os.path.join(modulefiles, 'Core', '.base', self.name())
+        else:
+            base_module_dir = os.path.join(modulefiles, '.base', self.name())
+        base_module = os.path.join(base_module_dir, 'generic.lua')
+
+        if os.path.exists(base_module):
+            if deps_dir == '':
+                return (base_module, os.path.join(modulefiles, 'Core', self.name()))
+            else:
+                return (base_module, os.path.join(modulefiles, self.name()))
+
+        if not os.path.exists(base_module_dir):
+            os.makedirs(base_module_dir)
+
+        base_content =  'local pkgNameVer  = myModuleFullName()\n'
+        base_content += 'local pkgName     = myModuleName()\n'
+        base_content += 'local fullVersion = myModuleVersion()\n'
+
+
+        base_var = 'local base = pathJoin("%s"' % (prefix_base)
+        mpath_var = 'local mpath = "%s-%s-"..fullVersion\n' % (modulefiles, self.name())
+        base_content += base_var + ', fullVersion)\n'
+
+        for (module, package, version) in deps:
+            base_content += 'load("%s/%s")\n' % (package.name(), version)
+
+        base_content += '\n'
+        base_content += 'whatis("Name: "..pkgName)\n'
+        base_content += 'whatis("Version: "..fullVersion)\n'
+        base_content += 'whatis("Category: %s")\n' % self.get_data('category')
+        base_content += 'whatis("Description: %s")\n' % self.get_data('description')
+        base_content += 'whatis("URL: %s")\n' % self.get_data('url')
+        base_content += 'whatis("Keywords: %s")\n' % self.get_data('keywords')
+        base_content += '\n'
+
+        base_content += 'setenv("%s_DIR", base)\n' % self.name().upper().replace('-', '_')
+        base_content += 'setenv("%s_ROOT", base)\n' % self.name().upper().replace('-', '_')
+        base_content += '\n'
+
+        envs = self.module_env_vars()
+        for env in envs:
+            base_content += 'setenv("%s", pathJoin(base, "%s"))\n' % (env, envs[env])
+        if len(envs) > 0:
+            base_content += '\n'
+
+        paths = {
+            'PATH' : ['bin'],
+            'LD_LIBRARY_PATH': ['lib', 'lib64'],
+            'MANPATH': ['share/man'],
+            'INFOPATH': ['share/info'],
+            'PKG_CONFIG_PATH': ['lib/pkgconfig'],
+            'PYTHONPATH': ['share/%s/python' % (self.name())]
+        }
+        paths.update(self.module_path_vars())
+        for path in paths:
+            for p in paths[path]:
+                base_content += 'if (isDir(pathJoin(base, "%s"))) then\n' % (p)
+                base_content += '   prepend_path("%s", pathJoin(base, "%s"))\n' %(path, p)
+                base_content += 'end\n'
+
+        base_content += '\n'
+        base_content += 'if (isDir(mpath)) then\n'
+        base_content += '   prepend_path("MODULEPATH", mpath)\n'
+        base_content += 'end\n'
+        base_content += 'local completionFile = pathJoin(base, "etc", "bash_completion.d", pkgName)\n'
+        base_content += 'if (isFile(completionFile)) then\n'
+        base_content += '   execute {cmd="source "..completionFile, modeA={"load"}}\n'
+        base_content += 'end\n'
+
+        f = open(base_module, 'w')
+        f.write(base_content)
+        f.close()
+
+        if deps_dir == '':
+            return (base_module, os.path.join(modulefiles, 'Core', self.name()))
+        else:
+            return (base_module, os.path.join(modulefiles, self.name()))
+
+    def write_modulefile(self, basepath, arch, version, rext_deps, deps):
+        (base_module, prefix_base) = self.base_modulefile(basepath, arch, rext_deps, deps)
+        if not os.path.exists(prefix_base):
+            os.makedirs(prefix_base)
+        prefix_base = os.path.join(prefix_base, '%s.lua' % (version))
+        if not os.path.exists(prefix_base):
+            os.symlink(base_module, prefix_base)
+
     def is_installed(self, basepath, arch, version, deps=None):
         return os.path.exists(self.prefix(basepath, arch, version, deps))
 
     def install_version(self, basepath, arch, module, version, env, ext_deps = None):
-        if type(version) is unicode:
+        if type(version) is unicode or type(version) is str:
             for v in self.json_data['versions']:
                 if v[0] == version:
                     version = v
@@ -418,10 +557,8 @@ class Package:
                                 shell = subprocess.Popen(['/bin/bash', '-l'], cwd=source_path,
                                     stdin=subprocess.PIPE, env=build_env)
                                 shell.stdin.write('module purge\n')
+                                shell.stdin.write(build_deps_modules)
                                 shell.stdin.write('module list\n')
-                                shell.stdin.write('echo $PACKAGE_PREFIX\n')
-                                shell.stdin.write('echo $SRC_DIR0\n')
-                                shell.stdin.write('echo $BUILD_DIR\n')
 
                                 for step in self.json_data['build']:
                                     shell.stdin.write('__RET=$?; if [ $__RET != 0 ]; then exit $__RET; else ' + step + '; fi\n')
@@ -434,9 +571,10 @@ class Package:
                                 if ret != 0:
                                     print('Installing Package %s/%s failed.' %(
                                         self.name(), version[0]))
-
-                                    shutil.rmtree(prefix)
+                                    if os.path.exists(prefix):
+                                        shutil.rmtree(prefix)
                                     exit(1)
+                                self.write_modulefile(basepath, arch, version[0], rext_deps, build_deps)
 
         print('Installing Package %s/%s done.' %(
             self.name(), version[0]))
@@ -444,10 +582,75 @@ class Package:
     def install(self, basepath, arch, module, versions = None):
         env = os.environ
         env['COLUMNS'] = '80'
+        env['BUILDIT'] = 'python %s' % (os.path.realpath(__file__))
         if not versions:
             versions = self.json_data['versions']
         for version in versions:
             self.install_version(basepath, arch, module, version, env)
+
+    def uninstall_version(self, basepath, arch, module, version, env, ext_deps = None):
+        if type(version) is unicode or type(version) is str:
+            for v in self.json_data['versions']:
+                if v[0] == version:
+                    version = v
+
+        package = self
+        compiler = None
+        mpi = None
+        boost = None
+        cuda = None
+        python = None
+
+        for deps in package.build_deps:
+            for (pmodule, ppackage, pversion) in deps:
+                if pmodule == 'Compiler':
+                    compiler = ppackage
+                elif pmodule == 'MPI':
+                    mpi = ppackage
+                elif module == 'Boost':
+                    boost = ppackage
+                elif module == 'CUDA':
+                    cuda = ppackage
+                elif module == 'Python':
+                    python = ppackage
+
+        extract_versions = lambda p: p.versions() if p else ['*']
+
+        for arch in architectures:
+            deps = {}
+            for boost_version in extract_versions(boost):
+                if boost:
+                    deps['boost'] = (boost, [boost_version])
+                for cuda_version in extract_versions(cuda):
+                    if cuda:
+                        deps['cuda'] = (cuda, [cuda_version])
+                    for mpi_version in extract_versions(mpi):
+                        if mpi:
+                            deps['mpi'] = (mpi, [mpi_version])
+                        for python_version in extract_versions(python):
+                            if python:
+                                deps['python'] = (python, [python_version])
+                            for compiler_version in extract_versions(compiler):
+                                if compiler:
+                                    deps['compiler'] = (compiler, [compiler_version])
+                                if package.is_installed(basepath, arch, version[0], deps):
+                                    prefix = package.prefix(basepath, arch, version[0], deps)
+                                    shutil.rmtree(prefix)
+                                    deps_dir = self.get_deps_path(deps)
+                                    if deps_dir == '':
+                                        deps_dir = 'Core'
+                                    os.remove(os.path.join(basepath, arch, 'modulefiles', deps_dir, self.name(), '%s.lua' % (version[0])))
+                                    print('    Removed %s: %s (%s, %s)' % (arch, version[0], deps, prefix))
+
+    def uninstall(self, basepath, arch, module, versions = None):
+        env = os.environ
+        env['COLUMNS'] = '80'
+        remove_base_module = False
+        if not versions:
+            versions = self.json_data['versions']
+            remove_base_module = True
+        for version in versions:
+            self.uninstall_version(basepath, arch, module, version, env)
 
 def load_packages():
     for module in os.listdir(package_path):
@@ -476,14 +679,51 @@ def load_packages():
 
 def list_installed(basepath):
     print ('Listing installed packages in ' + basepath)
-    for arch in architectures:
-        arch_path = os.path.join(basepath, arch)
-        if os.path.exists(arch_path):
-            print ('Packages for ' + arch + ':')
-            for module in os.listdir(arch_path):
-                module_path = os.path.join(arch_path, module)
-                print ('Module ' + module + ':')
-        print ('')
+    for module in packages:
+        for name in packages[module]:
+            package = packages[module][name]
+            print('%s/%s:' % (module, name))
+            compiler = None
+            mpi = None
+            boost = None
+            cuda = None
+            python = None
+
+            for deps in package.build_deps:
+                for (pmodule, ppackage, pversion) in deps:
+                    if pmodule == 'Compiler':
+                        compiler = ppackage
+                    elif pmodule == 'MPI':
+                        mpi = ppackage
+                    elif module == 'Boost':
+                        boost = ppackage
+                    elif module == 'CUDA':
+                        cuda = ppackage
+                    elif module == 'Python':
+                        python = ppackage
+
+            extract_versions = lambda p: p.versions() if p else ['*']
+
+            for arch in architectures:
+                for version in package.versions():
+                    deps = {}
+                    for boost_version in extract_versions(boost):
+                        if boost:
+                            deps['boost'] = (boost, [boost_version])
+                        for cuda_version in extract_versions(cuda):
+                            if cuda:
+                                deps['cuda'] = (cuda, [cuda_version])
+                            for mpi_version in extract_versions(mpi):
+                                if mpi:
+                                    deps['mpi'] = (mpi, [mpi_version])
+                                for python_version in extract_versions(python):
+                                    if python:
+                                        deps['python'] = (python, [python_version])
+                                    for compiler_version in extract_versions(compiler):
+                                        if compiler:
+                                            deps['compiler'] = (compiler, [compiler_version])
+                                        if package.is_installed(basepath, arch, version, deps):
+                                            print('    %s: %s (%s)' % (arch, version, deps))
 
 def list_available():
     for module in packages:
@@ -516,10 +756,35 @@ def install(basepath, targets, arch):
         for module in install_packages:
             for name in install_packages[module]:
                 package = install_packages[module][name]
-                package.install(basepath, arch, module)
+                package.install(basepath, arch, module, versions)
 
 def uninstall(basepath, targets, arch):
-    pass
+    print ('Uninstalling \'%s\' to %s' % (targets, basepath))
+
+    archs = architectures
+    if arch != 'all':
+        if not arch in architectures:
+            error = '%s not found in list of architectures %s' % (arch, architectures)
+            raise Exception(error)
+        archs = [arch]
+
+    versions = None
+    if targets == 'all':
+        uninstall_packages = packages
+    else:
+        (module, package, version) = find_package(targets)
+        if not package:
+            print('Could not find package %s' % (targets))
+            exit(1)
+        if version != '*':
+            versions = [version]
+        uninstall_packages = {module: {package.name(): package}}
+
+    for arch in archs:
+        for module in uninstall_packages:
+            for name in uninstall_packages[module]:
+                package = uninstall_packages[module][name]
+                package.uninstall(basepath, arch, module, versions)
 
 def main():
     parser = argparse.ArgumentParser(description='build.py')

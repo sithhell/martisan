@@ -1,0 +1,19 @@
+{
+    "name": "mpc",
+    "category": "Math Library",
+    "url": "http://www.multiprecision.org/",
+    "description": "Gnu Mpc is a C library for the arithmetic of complex numbers with arbitrarily high precision and correct rounding of the result.",
+    "dependencies": ["gmp/6.1.1", "mpfr/3.1.5"],
+    "versions":
+        [
+            ["1.0.3", "ftp://ftp.gnu.org/gnu/mpc/mpc-1.0.3.tar.gz"]
+        ],
+    "build":
+        [
+            "cd $BUILD_DIR",
+            "$SRC_DIR0/configure --prefix=$PACKAGE_PREFIX --with-gmp=$GMP_ROOT --with-mpfr=$MPFR_ROOT",
+            "make -j8",
+            "make install"
+        ],
+    "architectures": "all"
+}

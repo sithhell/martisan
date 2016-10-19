@@ -1,0 +1,19 @@
+{
+    "name": "zlib",
+    "category": "Compression Library",
+    "url": "http://www.zlib.net/",
+    "description": "A Massively Spiffy Yet Delicately Unobtrusive Compression Library",
+    "versions":
+        [
+            ["1.2.8", "http://zlib.net/zlib-1.2.8.tar.gz"]
+        ],
+    "build":
+        [
+            "cd $BUILD_DIR",
+            "ln -sf $SRC_DIR0/* $BUILD_DIR/",
+            "./configure --prefix=$PACKAGE_PREFIX",
+            "make -j8",
+            "make install"
+        ],
+    "architectures": "all"
+}

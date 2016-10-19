@@ -5,6 +5,7 @@
     "description": "Ninja is a small build system with a focus on speed.",
     "versions":
         [
+            ["1.6.0", "https://github.com/ninja-build/ninja/archive/v1.6.0.tar.gz"],
             ["1.7.1", "https://github.com/ninja-build/ninja/archive/v1.7.1.tar.gz"]
         ],
     "build":
@@ -12,7 +13,7 @@
             "cd $BUILD_DIR",
             "export CXXFLAGS=-static",
             "export LDFLAGS=-static",
-            "$SRC_DIR0/configure.py --bootstrap",
+            "if [ $PACKAGE_VERSION == \"1.6.0\" ]; then cp -rf $SRC_DIR0/* .; ./configure.py --bootstrap; else $SRC_DIR0/configure.py --bootstrap; fi",
             "mkdir -p ${PACKAGE_PREFIX}/bin",
             "cp ninja ${PACKAGE_PREFIX}/bin",
             "mkdir -p ${PACKAGE_PREFIX}/etc/bash_completion.d",

@@ -1,12 +1,31 @@
 {
     "name": "gcc",
     "category": "Compiler",
-    "url": "http://www.cmake.org",
-    "description": "CMake is an open-source, cross-platform family of tools designed to build, test and package software.",
+    "url": "https://gcc.gnu.org/",
+    "description": "The GNU Compiler Collection",
+    "dependencies": ["gmp/6.1.1", "mpfr/3.1.5", "mpc/1.0.3", "isl/0.17.1"],
     "versions":
         [
-            ["1.8.5", "https://github.com/ninja-build/ninja/archive/v1.7.1.tar.gz"]
+            ["6.2.0", "ftp://ftp.gwdg.de/pub/misc/gcc/releases/gcc-6.2.0/gcc-6.2.0.tar.bz2"]
         ],
-    "build": ["env"],
-    "architectures": "all"
+    "build":
+        [
+            "cd $BUILD_DIR",
+            "$SRC_DIR0/configure --prefix=$PACKAGE_PREFIX --enable-gold=yes --enable-ld=no --enable-lto --with-gmp=$GMP_ROOT --with-mpfr=$MPFR_ROOT --with-mpc=$MPC_ROOT --with-isl=$ISL_ROOT --disable-multilib --enable-languages=c,c++,fortran,go",
+            "make -j8",
+            "make install"
+        ],
+    "architectures": "all",
+    "modulefile":
+        {
+            "paths":
+                {
+                    "LD_RUN_PATH": ["lib64"]
+                },
+            "env":
+                {
+                    "CC": "bin/gcc",
+                    "CC": "bin/g++"
+                }
+        }
 }

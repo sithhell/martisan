@@ -1,0 +1,18 @@
+{
+    "name": "bzip2",
+    "category": "Compression Library",
+    "url": "https://bzip2.org/",
+    "description": "bzip2 is a freely available, patent free (see below), high-quality data compressor",
+    "versions":
+        [
+            ["1.0.6", "http://www.bzip.org/1.0.6/bzip2-1.0.6.tar.gz"]
+        ],
+    "build":
+        [
+            "cd $BUILD_DIR",
+            "ln -sf $SRC_DIR0/* $BUILD_DIR/",
+            "make -j8",
+            "make install PREFIX=$PACKAGE_PREFIX"
+        ],
+    "architectures": "all"
+}

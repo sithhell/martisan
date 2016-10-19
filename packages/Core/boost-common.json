@@ -1,0 +1,16 @@
+{
+    "name": "boost-common",
+    "category": "Misc Library",
+    "url": "http://www.boost.org",
+    "description": "Boost provides free peer-reviewed portable C++ source libraries.",
+    "versions":
+        [
+            ["1.6.2", "http://downloads.sourceforge.net/project/boost/boost/1.62.0/boost_1_62_0.tar.bz2"]
+        ],
+    "build":
+        [
+            "mkdir -p $PACKAGE_PREFIX",
+            "cp -rf $SRC_DIR0/* $PACKAGE_PREFIX"
+        ],
+    "architectures": "all"
+}

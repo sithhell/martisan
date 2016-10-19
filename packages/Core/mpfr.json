@@ -1,0 +1,19 @@
+{
+    "name": "mpfr",
+    "category": "Math Library",
+    "url": "http://www.mpfr.org/",
+    "description": "The MPFR library is a C library for multiple-precision floating-point computations with correct rounding.",
+    "dependencies": ["gmp/6.1.1"],
+    "versions":
+        [
+            ["3.1.5", "http://www.mpfr.org/mpfr-current/mpfr-3.1.5.tar.bz2"]
+        ],
+    "build":
+        [
+            "cd $BUILD_DIR",
+            "$SRC_DIR0/configure --prefix=$PACKAGE_PREFIX --with-gmp=$GMP_ROOT",
+            "make -j8",
+            "make install"
+        ],
+    "architectures": "all"
+}

@@ -1,0 +1,30 @@
+{
+    "name": "boost",
+    "category": "Misc Library",
+    "url": "http://www.boost.org",
+    "description": "Boost provides free peer-reviewed portable C++ source libraries.",
+    "dependencies": ["Compiler", "bzip2/1.0.6", "zlib/1.2.8"],
+    "versions":
+        [
+            ["1.6.2"]
+        ],
+    "build":
+        [
+            "cd $BUILD_DIR",
+            "$BUILDIT --install --targets boost-common/$PACKAGE_VERSION",
+            "module load boost-common/$PACKAGE_VERSION",
+            "ln -sf $BOOST_COMMON_ROOT/* $BUILD_DIR/",
+            "./bootstrap.sh",
+            "export B2_ARGS=\"-s BZIP2_LIBPATH=$BZIP2_ROOT/lib\"",
+            "export B2_ARGS=\"$B2_ARGS -s BZIP2_INCLUDE=$BZIP2_ROOT/include\"",
+            "export B2_ARGS=\"$B2_ARGS -s ZLIB_LIBPATH=$ZLIB_ROOT/lib\"",
+            "export B2_ARGS=\"$B2_ARGS -s ZLIB_INCLUDE=$ZLIB_ROOT/include\"",
+            "if [ -z $PYTHON_ROOT ]; then export B2_ARGS=\"$B2_ARGS --without-python\"; else export B2_ARGS=\"$B2_ARGS --with-python\"; fi",
+            "mkdir -p $PACKAGE_PREFIX",
+            "./b2 -j8 variant=release --stagedir=$PACKAGE_PREFIX link=static $B2_ARGS",
+            "./b2 -j8 variant=release --stagedir=$PACKAGE_PREFIX link=shared $B2_ARGS",
+            "mkdir -p $PACKAGE_PREFIX/include",
+            "ln -sf $BOOST_COMMON_ROOT/boost $PACKAGE_PREFIX/include/"
+        ],
+    "architectures": "all"
+}
